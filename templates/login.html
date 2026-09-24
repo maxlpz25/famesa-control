@@ -2,64 +2,43 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAMESA - Acceso Seguro Multi-Sede</title>
+    <title>FAMESA EXPLOSIVOS - Iniciar Sesión</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-[#080C17] text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
-    <div class="max-w-md w-full bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-        <div class="absolute top-0 left-0 right-0 h-1.5 bg-[#E30613]"></div>
-        <div class="text-center mb-6">
-            <div class="bg-white p-2.5 rounded-2xl inline-block mb-3 shadow">
-                <img src="/static/logo_famesa.png" alt="FAMESA" class="h-9 object-contain" onerror="this.src='/static/icono_famesa.png'">
-            </div>
-            <h2 class="text-base font-bold text-white uppercase tracking-wider">Acceso al Sistema</h2>
-            <p class="text-xs text-slate-400 mt-1">Puente Piedra • Chancay • La Joya</p>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-8 shadow-2xl space-y-6">
+        <div class="text-center space-y-2">
+            <div class="bg-red-600 text-white w-14 h-14 mx-auto rounded-xl flex items-center justify-center text-2xl shadow-lg"><i class="fa-solid fa-industry"></i></div>
+            <h2 class="text-xl font-black tracking-wider text-white">ACCESO AL SISTEMA</h2>
+            <p class="text-xs text-slate-400">Puente Piedra • Chancay • La Joya</p>
         </div>
 
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="mb-4 p-3 rounded-xl bg-red-900/40 border border-red-500/50 text-red-200 text-xs flex items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation text-red-400"></i> {{ messages[0] }}
-                </div>
-            {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="bg-red-950 border border-red-700 text-red-200 text-xs p-3 rounded-lg text-center font-semibold">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
         {% endwith %}
 
-        <form method="POST" action="/login" class="space-y-4 text-xs">
+        <form method="POST" class="space-y-4">
             <div>
-                <label class="block text-slate-300 font-semibold mb-1">Usuario</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
-                        <i class="fa-solid fa-user"></i>
-                    </span>
-                    <input type="text" name="username" required placeholder="Ingresa tu usuario" class="w-full bg-[#080C17] border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-white focus:outline-none focus:border-[#E30613]">
-                </div>
+                <label class="text-xs font-bold text-slate-400 block mb-1">Usuario</label>
+                <input type="text" name="username" required placeholder="Ingrese su usuario" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white text-sm focus:border-red-600 focus:outline-none transition">
             </div>
             <div>
-                <label class="block text-slate-300 font-semibold mb-1">Contraseña</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
-                        <i class="fa-solid fa-lock"></i>
-                    </span>
-                    <input type="password" name="password" required placeholder="••••••••" class="w-full bg-[#080C17] border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-white focus:outline-none focus:border-[#E30613]">
-                </div>
+                <label class="text-xs font-bold text-slate-400 block mb-1">Contraseña</label>
+                <input type="password" name="password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white text-sm focus:border-red-600 focus:outline-none transition">
             </div>
-            <button type="submit" class="w-full py-3 bg-[#E30613] hover:bg-[#B7050F] text-white font-bold rounded-xl text-sm shadow-lg shadow-red-600/30 transition flex items-center justify-center gap-2">
-                <i class="fa-solid fa-right-to-bracket"></i> Iniciar Sesión
+            <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold p-3 rounded-lg text-sm shadow-lg transition flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-right-to-bracket"></i>
+                <span>Iniciar Sesión</span>
             </button>
         </form>
 
-        <div class="mt-3 text-center">
-            <a href="/recuperar_password" class="text-xs text-amber-400 hover:text-amber-300 font-medium transition flex items-center justify-center gap-1.5">
-                <i class="fa-solid fa-unlock-keyhole text-[11px]"></i> ¿Olvidaste tu contraseña? Recuperar aquí
-            </a>
-        </div>
-
-        <div class="mt-6 pt-4 border-t border-slate-800 text-center">
-            <a href="/" class="text-xs text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition">
-                <i class="fa-solid fa-arrow-left"></i> Volver a la Pantalla Pública
-            </a>
+        <div class="text-center pt-2">
+            <a href="/" class="text-xs text-slate-400 hover:text-white transition"><i class="fa-solid fa-arrow-left mr-1"></i> Volver a la Pantalla Pública</a>
         </div>
     </div>
 </body>

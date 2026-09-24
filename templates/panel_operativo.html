@@ -2,536 +2,470 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAMESA EXPLOSIVOS - Panel Operativo</title>
+    <title>FAMESA EXPLOSIVOS - Panel Operativo Multisede</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        famesa: { red: '#E30613', darkred: '#B7050F', dark: '#080C17', card: '#111827', border: '#1F2937' }
-                    },
-                    fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-                        mono: ['"JetBrains Mono"', 'monospace'],
-                        digital: ['"Chakra Petch"', 'sans-serif']
-                    }
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-[#080C17] text-slate-100 font-sans min-h-screen">
-
-    <!-- CABECERA OPERATIVA -->
-    <header class="bg-[#111827] border-b border-slate-800 sticky top-0 z-40 px-5 py-3 shadow-lg">
-        <div class="max-w-[1700px] mx-auto flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center space-x-3">
-                <div class="bg-red-600 text-white font-black px-3 py-1 rounded-lg text-base tracking-wider shadow">
-                    FAMESA EXPLOSIVOS
-                </div>
-                <span class="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono">PANEL OPERATIVO</span>
-                <span class="text-xs text-slate-400">| Usuario: <b class="text-white" id="header-user-display">{{ session.get('nombre') }}</b> 
-                    <span class="text-amber-400 font-bold">({{ session.get('sede_asignada') }})</span>
-                </span>
-            </div>
-
-            <div class="flex items-center space-x-2 text-xs">
-                <!-- Botón Mi Perfil: Cualquier usuario puede cambiar sus credenciales -->
-                <button onclick="abrirModalMiPerfil()" class="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition font-semibold" title="Cambiar mi usuario o contraseña">
-                    <i class="fa-solid fa-key text-amber-400"></i> Mi Cuenta / Clave
-                </button>
-
-                <a href="/" target="_blank" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-700 flex items-center gap-1.5 transition">
-                    <i class="fa-solid fa-tv text-cyan-400"></i> Ver Dashboard
-                </a>
-
-                {% if session.get('puede_crear_usuarios') %}
-                <a href="/usuarios" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shadow transition">
-                    <i class="fa-solid fa-users-gear"></i> Gestión de Usuarios
-                </a>
-                {% endif %}
-
-                <a href="/logout" class="bg-red-950 hover:bg-red-900 text-red-200 border border-red-800/60 px-3 py-1.5 rounded-xl font-bold transition">
-                    <i class="fa-solid fa-power-off"></i> Salir
-                </a>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <nav class="bg-slate-900 border-b border-red-700 px-6 py-3 flex justify-between items-center shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="bg-red-600 text-white font-bold p-2 rounded shadow"><i class="fa-solid fa-industry"></i></div>
+            <div>
+                <h1 class="text-sm font-black tracking-wider text-white">FAMESA EXPLOSIVOS</h1>
+                <p class="text-xs text-red-400 font-semibold">PLANTA EN CONTROL</p>
             </div>
         </div>
-    </header>
+        <div class="flex items-center space-x-4 text-sm font-semibold">
+            <span class="text-slate-300"><i class="fa-solid fa-user-shield mr-1 text-red-500"></i> {{ session.nombre }} (Sede: <span class="text-amber-400">{{ session.sede_asignada }}</span>)</span>
+            {% if session.puede_crear_usuarios %}
+            <a href="/usuarios" class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded transition"><i class="fa-solid fa-users-gear mr-1"></i> Admin & Auditoría</a>
+            {% endif %}
+            {% if session.chat_recibir %}
+            <button onclick="abrirChat()" class="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded transition relative"><i class="fa-solid fa-comments mr-1"></i> Mensajería <span id="puntoNotif" class="hidden absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span></button>
+            {% endif %}
+            <a href="/logout" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded transition"><i class="fa-solid fa-power-off mr-1"></i> Salir</a>
+        </div>
+    </nav>
 
-    <main class="max-w-[1700px] mx-auto p-4 space-y-5">
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-wrap justify-between items-center gap-4 shadow-xl">
+            <div class="flex space-x-2">
+                {% for s in ["Puente Piedra", "Chancay", "La Joya", "TODAS"] %}
+                <button onclick="cambiarSede('{{ s }}')" id="btnSede_{{ s }}" class="px-4 py-2 rounded-lg font-bold text-xs transition sede-btn {% if s == 'Puente Piedra' %}bg-red-600 text-white shadow-lg{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    <i class="fa-solid fa-industry mr-1"></i> {{ s }}
+                </button>
+                {% endfor %}
+            </div>
+            <div class="flex items-center space-x-3">
+                <input type="date" id="filtroFecha" onchange="cargarDatos()" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                {% if session.puede_gestionar_categorias %}
+                <button onclick="abrirModalCategorias()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition shadow"><i class="fa-solid fa-tags mr-1"></i> Gestionar Categorías</button>
+                {% endif %}
+                {% if session.puede_exportar_excel %}
+                <a id="btnExportar" href="#" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow"><i class="fa-solid fa-file-excel mr-1"></i> Exportar Excel</a>
+                {% endif %}
+            </div>
+        </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="contenedorTarjetas"></div>
 
-            <!-- COLUMNA IZQUIERDA: REGISTRO RÁPIDO + GESTOR DE FILAS -->
-            <div class="lg:col-span-1 space-y-5">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-base font-bold text-white"><i class="fa-solid fa-list-check mr-2 text-red-500"></i> Registro de Movimientos Operativos</h2>
+                {% if session.puede_registrar %}
+                <button onclick="abrirModalMovimiento()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition shadow"><i class="fa-solid fa-plus mr-1"></i> Nuevo Registro</button>
+                {% endif %}
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-slate-950 text-slate-400 border-b border-slate-800">
+                            <th class="p-3">Hora</th>
+                            <th class="p-3">Sede</th>
+                            <th class="p-3">Categoría</th>
+                            <th class="p-3">Movimiento</th>
+                            <th class="p-3 text-right">Cantidad</th>
+                            <th class="p-3">Empresa</th>
+                            <th class="p-3">Placa</th>
+                            <th class="p-3">Registrado por</th>
+                            <th class="p-3 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaMovimientos" class="divide-y divide-slate-800"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
 
-                <!-- 1. REGISTRO RÁPIDO CON CANTIDAD PRIORITARIA Y CAMPOS OPCIONALES -->
-                <div class="bg-[#111827] p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-pen-to-square text-famesa-red"></i> Registro Rápido (Entrada / Salida)
-                        </h3>
-                        <span class="text-[10px] font-mono bg-emerald-900/40 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">MODO DIRECTO</span>
+    <!-- MODAL CATEGORÍAS -->
+    <div id="modalCat" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-tags text-amber-500 mr-2"></i> Gestión de Categorías por Sede</h3>
+            <div class="space-y-2 max-h-50 overflow-y-auto" id="listaCatModal"></div>
+            <hr class="border-slate-800">
+            <div class="space-y-3">
+                <input type="hidden" id="editCatId">
+                <input type="text" id="nombreCat" placeholder="Nombre de categoría" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs">
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="sedeCat" class="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs">
+                        <option value="TODAS">Todas las Sedes</option>
+                        <option value="Puente Piedra">Puente Piedra</option>
+                        <option value="Chancay">Chancay</option>
+                        <option value="La Joya">La Joya</option>
+                    </select>
+                    <input type="color" id="colorCat" value="#E30613" class="w-full h-9 bg-slate-950 border border-slate-700 rounded-lg p-1 cursor-pointer">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 pt-2">
+                <button onclick="cerrarModalCat()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg text-xs font-semibold transition">Cerrar</button>
+                <button onclick="guardarCategoria()" class="bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg text-xs font-semibold transition">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL MOVIMIENTO (RESTRINGIDO A SEDE ASIGNADA) -->
+    <div id="modalMov" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <h3 id="tituloModalMov" class="text-lg font-bold text-white">Registrar Movimiento Operativo</h3>
+            <input type="hidden" id="movId">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400">Sede</label>
+                    <select id="movSede" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs mt-1">
+                        {% if session.sede_asignada == 'TODAS' or session.rol == 'superadmin' %}
+                        <option value="Puente Piedra">Puente Piedra</option>
+                        <option value="Chancay">Chancay</option>
+                        <option value="La Joya">La Joya</option>
+                        {% else %}
+                        <option value="{{ session.sede_asignada }}">{{ session.sede_asignada }}</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400">Categoría</label>
+                    <select id="movCategoria" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs mt-1"></select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400">Tipo de Movimiento</label>
+                    <select id="movTipo" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs mt-1">
+                        <option value="INGRESO TURNO">INGRESO TURNO</option>
+                        <option value="SALIDA TURNO">SALIDA TURNO</option>
+                        <option value="SALIDA COMISIÓN">SALIDA COMISIÓN</option>
+                        <option value="RETORNO COMISIÓN">RETORNO COMISIÓN</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400">Cantidad</label>
+                    <input type="number" id="movCantidad" value="1" min="1" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs mt-1">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400">Empresa / Detalle</label>
+                    <input type="text" id="movEmpresa" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs mt-1">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400">Placa / Vehículo</label>
+                    <input type="text" id="movPlaca" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-xs mt-1">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 pt-2">
+                <button onclick="cerrarModalMov()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg text-xs font-semibold transition">Cancelar</button>
+                <button onclick="guardarMovimiento()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-xs font-semibold transition">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CHAT -->
+    <div id="modalChat" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full p-6 space-y-4 shadow-2xl h-[600px] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white"><i class="fa-solid fa-comments text-blue-500 mr-2"></i> Centro de Mensajería Independiente</h3>
+                <button onclick="cerrarChat()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="flex flex-1 space-x-4 overflow-hidden">
+                <div class="w-1/3 bg-slate-950 rounded-xl p-3 border border-slate-800 overflow-y-auto space-y-2" id="listaConversaciones"></div>
+                <div class="flex-1 bg-slate-950 rounded-xl p-4 border border-slate-800 flex flex-col justify-between">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                        <span id="tituloConversacion" class="text-xs font-bold text-red-400">Selecciona un usuario</span>
+                        <button onclick="borrarConversacionActual()" id="btnBorrarConv" class="hidden text-red-400 hover:text-red-300 text-xs"><i class="fa-solid fa-trash mr-1"></i> Borrar Conversación</button>
                     </div>
-
-                    {% if session.get('puede_registrar') %}
-                    <form id="form-mov" onsubmit="guardarMovimiento(event)" class="space-y-3 text-xs">
-                        
-                        <!-- Sede -->
-                        <div>
-                            <label class="block text-slate-400 mb-1 font-semibold">Sede / Planta</label>
-                            <select id="m-sede" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:border-famesa-red focus:outline-none">
-                                {% if session.get('sede_asignada') == 'TODAS' %}
-                                    <option value="Puente Piedra">Puente Piedra</option>
-                                    <option value="Chancay">Chancay</option>
-                                    <option value="La Joya">La Joya</option>
-                                {% else %}
-                                    <option value="{{ session.get('sede_asignada') }}">{{ session.get('sede_asignada') }}</option>
-                                {% endif %}
-                            </select>
-                        </div>
-
-                        <!-- Fecha y Hora -->
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-slate-400 mb-1">Fecha</label>
-                                <input type="date" id="m-fecha" required class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-white font-mono">
-                            </div>
-                            <div>
-                                <label class="block text-slate-400 mb-1">Hora (24H)</label>
-                                <input type="time" step="1" id="m-hora" required class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-white font-mono">
-                            </div>
-                        </div>
-
-                        <!-- Fila / Categoría -->
-                        <div>
-                            <label class="block text-slate-400 mb-1 font-semibold">Fila / Categoría a mover</label>
-                            <select id="m-categoria" onchange="actualizarTiposMovimiento()" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2.5 text-white font-bold focus:border-famesa-red focus:outline-none">
-                                <!-- Llenado dinámico -->
-                            </select>
-                        </div>
-
-                        <!-- Tipo de Movimiento -->
-                        <div>
-                            <label class="block text-slate-400 mb-1 font-semibold">Movimiento</label>
-                            <select id="m-tipo" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:border-famesa-red focus:outline-none">
-                                <option value="INGRESO TURNO">INGRESO TURNO</option>
-                                <option value="SALIDA TURNO">SALIDA TURNO</option>
-                                <option value="SALIDA COMISIÓN" id="opt-com-s" class="text-amber-400">SALIDA COMISIÓN (Exclusivo Famesa)</option>
-                                <option value="RETORNO COMISIÓN" id="opt-com-r" class="text-emerald-400">RETORNO COMISIÓN (Exclusivo Famesa)</option>
-                            </select>
-                        </div>
-
-                        <!-- CANTIDAD PRINCIPAL (PRIORIDAD) -->
-                        <div class="bg-slate-900/90 p-3 rounded-2xl border border-red-500/40">
-                            <label class="block text-amber-300 font-bold mb-1 text-center uppercase tracking-wider">
-                                Cantidad (Personas, Carros, Contratos, etc.):
-                            </label>
-                            <input type="number" id="m-cantidad" min="1" max="9999" value="1" required class="w-full bg-[#080C17] border border-red-500/60 rounded-xl py-2 text-center text-white font-digital font-bold text-3xl focus:outline-none focus:border-red-400">
-                        </div>
-
-                        <!-- CAMPOS 100% OPCIONALES (SI NO SE LLENAN, NO TRABA EL REGISTRO) -->
-                        <div class="pt-2 border-t border-slate-800/80 space-y-2.5">
-                            <span class="text-[11px] text-slate-400 font-mono block">Datos Complementarios (OPCIONALES):</span>
-                            
-                            <div>
-                                <input type="text" id="m-empresa" placeholder="Empresa / Área (opcional)" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-slate-200 placeholder-slate-500">
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <input type="text" id="m-placa" placeholder="Placa / Carro (opcional)" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-slate-200 placeholder-slate-500 font-mono">
-                                </div>
-                                <div>
-                                    <input type="text" id="m-supervisor" placeholder="Supervisor (opcional)" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-slate-200 placeholder-slate-500">
-                                </div>
-                            </div>
-
-                            <div>
-                                <input type="text" id="m-motivo" placeholder="Observación o motivo (opcional)" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-slate-200 placeholder-slate-500">
-                            </div>
-                        </div>
-
-                        <button type="submit" class="w-full py-3 bg-famesa-red hover:bg-famesa-darkred text-white font-bold rounded-xl shadow-lg shadow-famesa-red/40 transition text-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-check"></i> Registrar Movimiento Ahora
-                        </button>
-                    </form>
-                    {% else %}
-                    <div class="p-4 bg-red-950/40 border border-red-800 rounded-xl text-red-300 text-xs">
-                        Tu usuario no tiene privilegios de registro. Contacta al Administrador.
+                    <div class="flex-1 overflow-y-auto space-y-3 pr-2 flex flex-col-reverse" id="mensajesChatActivo">
+                        <p class="text-slate-500 text-center text-xs mt-20">Selecciona una conversación.</p>
+                    </div>
+                    {% if session.chat_responder or session.rol == 'superadmin' %}
+                    <div class="flex space-x-2 pt-3 border-t border-slate-800" id="cajaResponder">
+                        <input type="text" id="textoMensaje" placeholder="Escribe un mensaje..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-xs">
+                        <button onclick="enviarMensajeActivo()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-paper-plane"></i></button>
                     </div>
                     {% endif %}
                 </div>
-
-                <!-- 2. GESTOR DE FILAS / CATEGORÍAS (DIRECTO Y VISIBLE) -->
-                {% if session.get('puede_gestionar_categorias') %}
-                <div class="bg-[#111827] p-5 rounded-3xl border border-purple-500/40 space-y-4 shadow-xl">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-layer-group text-purple-400"></i> Filas y Categorías del Dashboard
-                        </h3>
-                        <span class="text-[10px] font-mono bg-purple-900/40 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">ADMIN</span>
-                    </div>
-
-                    <form onsubmit="crearCategoria(event)" class="space-y-3 text-xs">
-                        <div>
-                            <label class="block text-slate-300 mb-1 font-semibold">Escribe aquí la nueva fila a colocar:</label>
-                            <input type="text" id="cat-nombre" required placeholder="Ej: 10 Carros / Policías / Terceros" class="w-full bg-[#080C17] border border-purple-500/50 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-purple-400 font-medium">
-                        </div>
-                        <div class="flex items-center justify-between gap-3 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                            <div class="flex items-center gap-2">
-                                <label class="text-slate-400 text-[11px]">Color:</label>
-                                <input type="color" id="cat-color" value="#E30613" class="h-7 w-12 rounded bg-transparent cursor-pointer">
-                            </div>
-                            <label class="flex items-center space-x-1.5 text-slate-300 text-[11px] cursor-pointer">
-                                <input type="checkbox" id="cat-comision" class="rounded bg-slate-800 text-purple-600">
-                                <span>Aplica Comisión (Salida/Retorno)</span>
-                            </label>
-                        </div>
-                        <button type="submit" class="w-full py-2.5 bg-purple-700 hover:bg-purple-600 text-white font-bold rounded-xl shadow transition flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-plus"></i> Colocar Fila en el Dashboard
-                        </button>
-                    </form>
-
-                    <div class="pt-3 border-t border-slate-800 space-y-2">
-                        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                            <span>Filas activas en pantalla:</span>
-                            <span id="cant-filas" class="font-mono text-purple-300">0 filas</span>
-                        </div>
-                        <div id="lista-categorias-panel" class="space-y-1.5 max-h-56 overflow-y-auto pr-1"></div>
-                    </div>
-                </div>
-                {% endif %}
-
             </div>
-
-            <!-- COLUMNA DERECHA: BITÁCORA Y EXPORTACIÓN EXCEL -->
-            <div class="lg:col-span-2 bg-[#111827] p-5 rounded-3xl border border-slate-800 space-y-4 shadow-xl h-fit">
-                <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-                    <div>
-                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-clock-rotate-left text-amber-400"></i> Bitácora de Registros y Auditoría
-                        </h3>
-                        <p class="text-[11px] text-slate-400">Listado cronológico con cantidades y datos completos.</p>
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-2 text-xs">
-                        <select id="filtro-sede" onchange="cargarMovimientos()" class="bg-[#080C17] border border-slate-700 rounded-lg px-2.5 py-1 text-white font-bold">
-                            {% if session.get('sede_asignada') == 'TODAS' %}
-                                <option value="TODAS">Todas las Sedes</option>
-                                <option value="Puente Piedra">Puente Piedra</option>
-                                <option value="Chancay">Chancay</option>
-                                <option value="La Joya">La Joya</option>
-                            {% else %}
-                                <option value="{{ session.get('sede_asignada') }}">{{ session.get('sede_asignada') }}</option>
-                            {% endif %}
-                        </select>
-
-                        <input type="month" id="filtro-mes" onchange="cargarMovimientos()" class="bg-[#080C17] border border-slate-700 rounded-lg px-2 py-1 text-white font-mono">
-
-                        {% if session.get('puede_exportar_excel') %}
-                        <button onclick="descargarExcel()" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded-lg flex items-center gap-1.5 transition font-bold shadow">
-                            <i class="fa-solid fa-file-excel"></i> Exportar Excel
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto max-h-[750px] overflow-y-auto">
-                    <table class="w-full text-left text-xs">
-                        <thead class="sticky top-0 bg-[#080C17] text-slate-400 font-mono uppercase border-b border-slate-800 z-10">
-                            <tr>
-                                <th class="p-2.5">Hora</th>
-                                <th class="p-2.5">Sede</th>
-                                <th class="p-2.5">Categoría</th>
-                                <th class="p-2.5">Movimiento</th>
-                                <th class="p-2.5 text-right text-amber-300 font-bold">Cantidad</th>
-                                <th class="p-2.5">Empresa</th>
-                                <th class="p-2.5">Placa</th>
-                                <th class="p-2.5">Supervisor</th>
-                                <th class="p-2.5 text-center">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="movimientos-body" class="divide-y divide-slate-800 font-mono text-[11px]">
-                            <!-- Llenado con JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-
-    </main>
-
-    <!-- MODAL PARA QUE CUALQUIER USUARIO CAMBIE SUS PROPIAS CREDENCIALES -->
-    <div id="modal-mi-perfil" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-[#111827] max-w-sm w-full p-6 rounded-3xl border border-slate-800 space-y-4 shadow-2xl">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-user-pen text-amber-400"></i> Cambiar Mis Credenciales
-                </h3>
-                <button onclick="cerrarModalMiPerfil()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-
-            <form onsubmit="guardarMiPerfil(event)" class="space-y-3 text-xs">
-                <div>
-                    <label class="block text-slate-400 mb-1 font-semibold">Mi Nombre de Usuario (Login)</label>
-                    <input type="text" id="perfil-username" value="{{ session.get('username') }}" required class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:border-amber-400 focus:outline-none">
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1 font-semibold">Nueva Contraseña</label>
-                    <input type="password" id="perfil-password" placeholder="Escribe tu nueva clave" class="w-full bg-[#080C17] border border-slate-700 rounded-xl px-3 py-2 text-white focus:border-amber-400 focus:outline-none">
-                    <span class="text-[10px] text-slate-500 block mt-1">Déjalo en blanco si solo quieres cambiar tu usuario.</span>
-                </div>
-
-                <div class="flex items-center gap-2 pt-2">
-                    <button type="button" onclick="cerrarModalMiPerfil()" class="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition">
-                        Cancelar
-                    </button>
-                    <button type="submit" class="w-1/2 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow transition">
-                        Actualizar Clave
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 
     <script>
-        const PUE_BORRAR = {{ 'true' if session.get('puede_borrar') else 'false' }};
-        let categoriasCargadas = [];
+        let sedeActual = "Puente Piedra";
+        let usuarioChatSeleccionado = null;
+        document.getElementById("filtroFecha").valueAsDate = new Date();
 
-        function initClock() {
-            const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const d = String(now.getDate()).padStart(2, '0');
-            const hoyStr = `${y}-${m}-${d}`;
-            document.getElementById('m-fecha').value = hoyStr;
-            document.getElementById('filtro-mes').value = `${y}-${m}`;
-
-            const h = String(now.getHours()).padStart(2, '0');
-            const min = String(now.getMinutes()).padStart(2, '0');
-            const s = String(now.getSeconds()).padStart(2, '0');
-            document.getElementById('m-hora').value = `${h}:${min}:${s}`;
-        }
-
-        async function cargarCategorias() {
-            try {
-                const res = await fetch(`/api/categorias?t=${Date.now()}`);
-                categoriasCargadas = await res.json();
-
-                const select = document.getElementById('m-categoria');
-                if (select) {
-                    select.innerHTML = '';
-                    categoriasCargadas.forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.nombre;
-                        opt.textContent = c.nombre;
-                        select.appendChild(opt);
-                    });
-                }
-
-                const panelLista = document.getElementById('lista-categorias-panel');
-                const badgeCant = document.getElementById('cant-filas');
-                if (panelLista) {
-                    panelLista.innerHTML = '';
-                    if (badgeCant) badgeCant.textContent = `${categoriasCargadas.length} filas`;
-
-                    categoriasCargadas.forEach(c => {
-                        const row = document.createElement('div');
-                        row.className = "flex items-center justify-between p-2 rounded-xl bg-slate-900 text-xs border border-slate-800 hover:border-purple-500/40 transition";
-                        row.innerHTML = `
-                            <div class="flex items-center gap-2">
-                                <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${c.color_tag}"></span>
-                                <span class="font-medium text-slate-200">${c.nombre}</span>
-                                ${c.aplica_comision ? '<span class="text-[10px] text-amber-400 font-mono">(Comisión)</span>' : ''}
-                            </div>
-                            <div>
-                                ${c.nombre !== 'Personal Propio Famesa' ? `
-                                    <button onclick="eliminarCategoria(${c.id}, '${c.nombre}')" class="text-red-400 hover:text-red-300 p-1 rounded transition" title="Eliminar fila del dashboard">
-                                        <i class="fa-solid fa-trash-can"></i>
-                                    </button>` : '<span class="text-slate-600 text-[10px] font-mono">Base</span>'}
-                            </div>
-                        `;
-                        panelLista.appendChild(row);
-                    });
-                }
-
-                actualizarTiposMovimiento();
-            } catch (err) {
-                console.error("Error cargando categorías:", err);
-            }
-        }
-
-        function actualizarTiposMovimiento() {
-            const catNombre = document.getElementById('m-categoria').value;
-            const catObj = categoriasCargadas.find(c => c.nombre === catNombre);
-            const aplicaCom = catObj ? catObj.aplica_comision : 0;
-
-            const optS = document.getElementById('opt-com-s');
-            const optR = document.getElementById('opt-com-r');
-            if (optS && optR) {
-                optS.disabled = !aplicaCom;
-                optR.disabled = !aplicaCom;
-                optS.style.display = aplicaCom ? "block" : "none";
-                optR.style.display = aplicaCom ? "block" : "none";
-            }
-        }
-
-        async function crearCategoria(e) {
-            e.preventDefault();
-            const nombre = document.getElementById('cat-nombre').value.trim();
-            if (!nombre) return;
-
-            const res = await fetch('/api/categorias', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    nombre: nombre,
-                    color_tag: document.getElementById('cat-color').value,
-                    aplica_comision: document.getElementById('cat-comision').checked
-                })
+        function cambiarSede(sede) {
+            sedeActual = sede;
+            document.querySelectorAll(".sede-btn").forEach(b => {
+                b.classList.remove("bg-red-600", "text-white", "shadow-lg");
+                b.classList.add("bg-slate-800", "text-slate-300");
             });
-            const d = await res.json();
-            if (res.ok) {
-                alert(`✓ ¡Fila "${nombre}" colocada con éxito en el Dashboard!`);
-                document.getElementById('cat-nombre').value = '';
-                await cargarCategorias();
-            } else {
-                alert(d.error || "Error al crear la fila");
-            }
+            document.getElementById(`btnSede_${sede}`).classList.remove("bg-slate-800", "text-slate-300");
+            document.getElementById(`btnSede_${sede}`).classList.add("bg-red-600", "text-white", "shadow-lg");
+            cargarDatos();
         }
 
-        async function eliminarCategoria(id, nombre) {
-            if (confirm(`¿Seguro que deseas eliminar la fila "${nombre}" del Dashboard y del sistema?`)) {
-                const res = await fetch(`/api/categorias?id=${id}`, { method: 'DELETE' });
-                if (res.ok) {
-                    alert(`✓ Fila "${nombre}" eliminada correctamente.`);
-                    await cargarCategorias();
-                    await cargarMovimientos();
-                } else {
-                    alert("Error al eliminar la fila");
-                }
-            }
-        }
+        async function cargarDatos() {
+            const fecha = document.getElementById("filtroFecha").value;
+            const res = await fetch(`/api/resumen?sede=${sedeActual}&fecha=${fecha}`);
+            const data = await res.json();
 
-        async function guardarMovimiento(e) {
-            e.preventDefault();
-            const cantVal = parseInt(document.getElementById('m-cantidad').value, 10) || 1;
-            const payload = {
-                sede: document.getElementById('m-sede').value,
-                fecha: document.getElementById('m-fecha').value,
-                hora: document.getElementById('m-hora').value,
-                categoria: document.getElementById('m-categoria').value,
-                tipo_movimiento: document.getElementById('m-tipo').value,
-                cantidad: cantVal,
-                empresa: document.getElementById('m-empresa').value.trim() || "-",
-                placa: document.getElementById('m-placa').value.trim() || "-",
-                supervisor: document.getElementById('m-supervisor').value.trim() || "-",
-                motivo: document.getElementById('m-motivo').value.trim() || "-"
-            };
-
-            const res = await fetch('/api/movimientos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const d = await res.json();
-            if (res.ok) {
-                alert(`✓ Registrado con éxito: ${cantVal} en ${payload.categoria}`);
-                document.getElementById('m-placa').value = '';
-                document.getElementById('m-motivo').value = '';
-                cargarMovimientos();
-            } else {
-                alert(d.error || "Error al registrar movimiento");
-            }
-        }
-
-        async function cargarMovimientos() {
-            const sede = document.getElementById('filtro-sede').value;
-            const mes = document.getElementById('filtro-mes').value;
-
-            const res = await fetch(`/api/movimientos?sede=${encodeURIComponent(sede)}&mes=${encodeURIComponent(mes)}&t=${Date.now()}`);
-            const lista = await res.json();
-
-            const tbody = document.getElementById('movimientos-body');
-            tbody.innerHTML = '';
-
-            lista.forEach(m => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-800/40 transition";
-                let badge = "bg-blue-500/20 text-blue-300";
-                if (m.tipo_movimiento === "SALIDA TURNO") badge = "bg-red-500/20 text-red-300";
-                if (m.tipo_movimiento === "SALIDA COMISIÓN") badge = "bg-amber-500/20 text-amber-300 font-bold";
-                if (m.tipo_movimiento === "RETORNO COMISIÓN") badge = "bg-emerald-500/20 text-emerald-300 font-bold";
-
-                tr.innerHTML = `
-                    <td class="p-2.5 font-bold text-slate-300">${m.hora}</td>
-                    <td class="p-2.5 font-bold text-amber-300">${m.sede}</td>
-                    <td class="p-2.5 font-sans text-slate-200 font-semibold">${m.categoria}</td>
-                    <td class="p-2.5"><span class="px-2 py-0.5 rounded text-[10px] ${badge}">${m.tipo_movimiento}</span></td>
-                    <td class="p-2.5 text-right font-digital font-bold text-white text-base bg-slate-900/60">${m.cantidad}</td>
-                    <td class="p-2.5 font-sans truncate max-w-[130px]">${m.empresa}</td>
-                    <td class="p-2.5">${m.placa}</td>
-                    <td class="p-2.5 font-sans text-slate-400">${m.supervisor}</td>
-                    <td class="p-2.5 text-center">
-                        ${PUE_BORRAR ? `<button onclick="eliminarMov(${m.id})" class="text-red-400 hover:text-red-300"><i class="fa-solid fa-trash"></i></button>` : ''}
-                    </td>
+            let htmlCards = "";
+            data.tarjetas.forEach(t => {
+                htmlCards += `
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg border-l-4" style="border-left-color: ${t.color_tag}">
+                        <span class="text-xs font-bold text-slate-400">${t.categoria}</span>
+                        <div class="mt-2 flex justify-between items-baseline">
+                            <span class="text-2xl font-black text-white">${t.presentes}</span>
+                            <span class="text-[10px] text-slate-500">Ing: ${t.ingresos} | Sal: ${t.salidas}</span>
+                        </div>
+                    </div>
                 `;
-                tbody.appendChild(tr);
             });
+            document.getElementById("contenedorTarjetas").innerHTML = htmlCards;
+
+            const resCat = await fetch(`/api/categorias?sede=${sedeActual}`);
+            const cats = await resCat.json();
+            let htmlCats = "";
+            cats.forEach(c => { htmlCats += `<option value="${c.nombre}">${c.nombre}</option>`; });
+            document.getElementById("movCategoria").innerHTML = htmlCats;
+
+            const resMov = await fetch(`/api/movimientos?sede=${sedeActual}&fecha=${fecha}`);
+            const movs = await resMov.json();
+            let htmlMovs = "";
+            movs.forEach(m => {
+                htmlMovs += `
+                    <tr class="hover:bg-slate-850 transition">
+                        <td class="p-3 font-mono text-slate-300">${m.hora}</td>
+                        <td class="p-3 text-red-400 font-semibold">${m.sede}</td>
+                        <td class="p-3 font-semibold">${m.categoria}</td>
+                        <td class="p-3 font-bold ${m.tipo_movimiento.includes('INGRESO') || m.tipo_movimiento.includes('RETORNO') ? 'text-emerald-400' : 'text-rose-400'}">${m.tipo_movimiento}</td>
+                        <td class="p-3 text-right font-mono font-bold text-white text-sm">${m.cantidad}</td>
+                        <td class="p-3 text-slate-300">${m.empresa}</td>
+                        <td class="p-3 font-mono text-slate-300">${m.placa}</td>
+                        <td class="p-3 text-slate-300 font-semibold text-amber-400">${m.supervisor}</td>
+                        <td class="p-3 text-center space-x-2">
+                            {% if session.puede_editar %}
+                            <button onclick='editarMovimiento(${JSON.stringify(m)})' class="text-amber-400 hover:text-amber-300" title="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
+                            {% endif %}
+                            {% if session.puede_borrar %}
+                            <button onclick="eliminarMovimiento(${m.id})" class="text-red-400 hover:text-red-300" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                `;
+            });
+            document.getElementById("tablaMovimientos").innerHTML = htmlMovs || `<tr><td colspan="9" class="p-4 text-center text-slate-500">No hay registros.</td></tr>`;
+            document.getElementById("btnExportar").href = `/exportar_excel?sede=${sedeActual}&fecha=${fecha}`;
+            verificarNotificacionesChat();
         }
 
-        async function eliminarMov(id) {
-            if (confirm("¿Seguro de eliminar este registro?")) {
-                const res = await fetch(`/api/movimientos/${id}`, { method: 'DELETE' });
-                if (res.ok) cargarMovimientos();
-                else alert("No se pudo eliminar");
+        async function verificarNotificacionesChat() {
+            const res = await fetch("/api/mensajes");
+            const msgs = await res.json();
+            const tienePendientes = msgs.some(m => m.leido === 0 && m.destinatario === "{{ session.username }}");
+            const punto = document.getElementById("puntoNotif");
+            if(punto) {
+                if(tienePendientes) punto.classList.remove("hidden");
+                else punto.classList.add("hidden");
             }
         }
 
-        function descargarExcel() {
-            const sede = document.getElementById('filtro-sede').value;
-            const mes = document.getElementById('filtro-mes').value;
-            window.location.href = `/exportar_excel?sede=${encodeURIComponent(sede)}&mes=${encodeURIComponent(mes)}`;
-        }
-
-        function abrirModalMiPerfil() {
-            document.getElementById('modal-mi-perfil').classList.remove('hidden');
-        }
-        function cerrarModalMiPerfil() {
-            document.getElementById('modal-mi-perfil').classList.add('hidden');
-        }
-
-        async function guardarMiPerfil(e) {
-            e.preventDefault();
-            const username = document.getElementById('perfil-username').value.trim();
-            const password = document.getElementById('perfil-password').value.trim();
-
-            const res = await fetch('/api/mi_perfil', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+        async function abrirModalCategorias() {
+            document.getElementById("modalCat").classList.remove("hidden");
+            const res = await fetch("/api/categorias");
+            const cats = await res.json();
+            let html = "";
+            cats.forEach(c => {
+                html += `
+                    <div class="flex justify-between items-center bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-3 h-3 rounded-full" style="background-color: ${c.color_tag}"></span>
+                            <span class="text-xs font-semibold text-white">${c.nombre} <span class="text-[10px] text-slate-400">[Sede: ${c.sede || 'TODAS'}]</span></span>
+                        </div>
+                        <div class="space-x-2">
+                            <button onclick='cargarEditCat(${c.id}, "${c.nombre}", "${c.color_tag}", "${c.sede || 'TODAS'}")' class="text-amber-400 hover:text-amber-300 text-xs"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="eliminarCategoria(${c.id})" class="text-red-400 hover:text-red-300 text-xs"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                `;
             });
-            const d = await res.json();
-            if (res.ok) {
-                alert("✓ Tus credenciales fueron actualizadas con éxito.");
-                location.reload();
+            document.getElementById("listaCatModal").innerHTML = html;
+        }
+
+        function cargarEditCat(id, nombre, color, sede) {
+            document.getElementById("editCatId").value = id;
+            document.getElementById("nombreCat").value = nombre;
+            document.getElementById("colorCat").value = color;
+            document.getElementById("sedeCat").value = sede;
+        }
+
+        async function guardarCategoria() {
+            const id = document.getElementById("editCatId").value;
+            const nombre = document.getElementById("nombreCat").value;
+            const color_tag = document.getElementById("colorCat").value;
+            const sede = document.getElementById("sedeCat").value;
+
+            const res = await fetch("/api/categorias", {
+                method: id ? "PUT" : "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({id: id ? parseInt(id) : null, nombre, color_tag, sede, aplica_comision: 1})
+            });
+            const r = await res.json();
+            if(r.success) {
+                document.getElementById("editCatId").value = "";
+                document.getElementById("nombreCat").value = "";
+                abrirModalCategorias();
+                cargarDatos();
+            } else { alert(r.error || "Error"); }
+        }
+
+        async function eliminarCategoria(id) {
+            if(confirm("¿Eliminar categoría?")) {
+                await fetch(`/api/categorias?id=${id}`, {method: "DELETE"});
+                abrirModalCategorias();
+                cargarDatos();
+            }
+        }
+
+        function cerrarModalCat() { document.getElementById("modalCat").classList.add("hidden"); }
+        function abrirModalMovimiento() { 
+            document.getElementById("movId").value = ""; 
+            document.getElementById("modalMov").classList.remove("hidden"); 
+        }
+        function editarMovimiento(m) {
+            document.getElementById("movId").value = m.id;
+            document.getElementById("movSede").value = m.sede;
+            document.getElementById("movCategoria").value = m.categoria;
+            document.getElementById("movTipo").value = m.tipo_movimiento;
+            document.getElementById("movCantidad").value = m.cantidad;
+            document.getElementById("movEmpresa").value = m.empresa;
+            document.getElementById("movPlaca").value = m.placa;
+            document.getElementById("modalMov").classList.remove("hidden");
+        }
+        function cerrarModalMov() { document.getElementById("modalMov").classList.add("hidden"); }
+
+        async function guardarMovimiento() {
+            const id = document.getElementById("movId").value;
+            const data = {
+                id: id ? parseInt(id) : null,
+                sede: document.getElementById("movSede").value,
+                categoria: document.getElementById("movCategoria").value,
+                tipo_movimiento: document.getElementById("movTipo").value,
+                cantidad: parseInt(document.getElementById("movCantidad").value),
+                empresa: document.getElementById("movEmpresa").value,
+                placa: document.getElementById("movPlaca").value
+            };
+            await fetch("/api/movimientos", {
+                method: id ? "PUT" : "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(data)
+            });
+            cerrarModalMov();
+            cargarDatos();
+        }
+
+        async function eliminarMovimiento(id) {
+            if(confirm("¿Eliminar registro?")) {
+                await fetch(`/api/movimientos/${id}`, {method: "DELETE"});
+                cargarDatos();
+            }
+        }
+
+        async function abrirChat() {
+            document.getElementById("modalChat").classList.remove("hidden");
+            const resU = await fetch("/api/usuarios");
+            const users = await resU.json();
+            const resM = await fetch("/api/mensajes");
+            const msgs = await resM.json();
+
+            let htmlU = "";
+            users.forEach(u => {
+                if(u.username === "{{ session.username }}") return;
+                const tienePendiente = msgs.some(m => m.remitente === u.username && m.destinatario === "{{ session.username }}" && m.leido === 0);
+                htmlU += `
+                    <button onclick="seleccionarChat('${u.username}', '${u.nombre_completo}')" class="w-full text-left p-3 rounded-lg bg-slate-900 hover:bg-slate-800 transition text-xs font-semibold text-white flex justify-between items-center">
+                        <div class="flex items-center space-x-2">
+                            ${tienePendiente ? '<span class="w-2.5 h-2.5 bg-emerald-400 rounded-full"></span>' : '<span class="w-2.5 h-2.5 bg-slate-700 rounded-full"></span>'}
+                            <span>${u.nombre_completo}</span>
+                        </div>
+                        <span class="text-[10px] text-slate-400">${u.sede_asignada}</span>
+                    </button>
+                `;
+            });
+            document.getElementById("listaConversaciones").innerHTML = htmlU || '<p class="text-slate-500 text-xs text-center">No hay usuarios.</p>';
+            verificarNotificacionesChat();
+        }
+
+        async function seleccionarChat(username, nombre) {
+            usuarioChatSeleccionado = username;
+            document.getElementById("tituloConversacion").innerText = `Conversación con: ${nombre}`;
+            document.getElementById("btnBorrarConv").classList.remove("hidden");
+
+            await fetch("/api/mensajes", {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({interlocutor: username})
+            });
+
+            const res = await fetch("/api/mensajes");
+            const msgs = await res.json();
+            let filtrados = msgs.filter(m => m.remitente === username || m.destinatario === username);
+            
+            let html = "";
+            filtrados.forEach(m => {
+                const esMia = m.remitente === "{{ session.username }}";
+                html += `
+                    <div class="p-2.5 rounded-lg border border-slate-800 ${esMia ? 'bg-slate-900 ml-6' : 'bg-slate-950 mr-6'}">
+                        <div class="flex justify-between items-center mb-1">
+                            <b class="${esMia ? 'text-emerald-400' : 'text-blue-400'} text-[11px]">${m.remitente}</b>
+                            <div class="space-x-2">
+                                <span class="text-[9px] text-slate-500">${m.creado_en}</span>
+                                <button onclick="borrarMensajeUnico(${m.id})" class="text-red-400 hover:text-red-300 text-[10px]"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        </div>
+                        <p class="text-white text-xs">${m.contenido}</p>
+                    </div>
+                `;
+            });
+            document.getElementById("mensajesChatActivo").innerHTML = html || '<p class="text-slate-500 text-xs text-center mt-10">No hay mensajes.</p>';
+            abrirChat();
+        }
+
+        async function enviarMensajeActivo() {
+            if(!usuarioChatSeleccionado) return alert("Selecciona un usuario primero");
+            const contenido = document.getElementById("textoMensaje").value;
+            if(!contenido) return;
+            const res = await fetch("/api/mensajes", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({destinatario: usuarioChatSeleccionado, contenido})
+            });
+            const r = await res.json();
+            if(r.success) {
+                document.getElementById("textoMensaje").value = "";
+                seleccionarChat(usuarioChatSeleccionado, document.getElementById("tituloConversacion").innerText.replace("Conversación con: ", ""));
             } else {
-                alert(d.error || "Error al actualizar credenciales.");
+                alert(r.error || "No tienes permiso para responder.");
             }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            initClock();
-            cargarCategorias();
-            cargarMovimientos();
-        });
+        async function borrarMensajeUnico(id) {
+            if(confirm("¿Borrar este mensaje?")) {
+                await fetch(`/api/mensajes?id=${id}`, {method: "DELETE"});
+                seleccionarChat(usuarioChatSeleccionado, document.getElementById("tituloConversacion").innerText.replace("Conversación con: ", ""));
+            }
+        }
+
+        async function borrarConversacionActual() {
+            if(confirm("¿Deseas borrar toda la conversación?")) {
+                await fetch(`/api/mensajes?interlocutor=${usuarioChatSeleccionado}`, {method: "DELETE"});
+                document.getElementById("mensajesChatActivo").innerHTML = '<p class="text-slate-500 text-xs text-center mt-10">Conversación eliminada.</p>';
+                abrirChat();
+            }
+        }
+
+        function cerrarChat() { document.getElementById("modalChat").classList.add("hidden"); }
+
+        cargarDatos();
+        setInterval(verificarNotificacionesChat, 10000);
     </script>
 </body>
 </html>

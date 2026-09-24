@@ -22,7 +22,6 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
 
-    # 1. Tabla Usuarios (con nuevos permisos de auditoría y edición)
     c.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,22 +36,34 @@ def init_db():
         puede_gestionar_categorias INTEGER DEFAULT 0,
         puede_exportar_excel INTEGER DEFAULT 1,
         puede_crear_usuarios INTEGER DEFAULT 0,
+        chat_recibir INTEGER DEFAULT 1,
+        chat_responder INTEGER DEFAULT 1,
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
 
-    # 2. Tabla Categorías Dinámicas
+    for col_chat in ["chat_recibir", "chat_responder"]:
+        try:
+            c.execute(f"ALTER TABLE usuarios ADD COLUMN {col_chat} INTEGER DEFAULT 1")
+        except:
+            pass
+
     c.execute('''
     CREATE TABLE IF NOT EXISTS categorias (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT UNIQUE NOT NULL,
+        sede TEXT DEFAULT 'TODAS',
         aplica_comision INTEGER DEFAULT 0,
         color_tag TEXT DEFAULT '#E30613',
         creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
 
-    # 3. Tabla Movimientos Operativos
+    try:
+        c.execute("ALTER TABLE categorias ADD COLUMN sede TEXT DEFAULT 'TODAS'")
+    except:
+        pass
+
     c.execute('''
     CREATE TABLE IF NOT EXISTS movimientos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +82,6 @@ def init_db():
     )
     ''')
 
-    # 4. Tabla de Auditoría / Rastro de Cambios (Solo visible para Administrador)
     c.execute('''
     CREATE TABLE IF NOT EXISTS auditoria (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,27 +92,39 @@ def init_db():
     )
     ''')
 
-    # Categorías iniciales
-    cats_default = [
-        ("Personal Propio Famesa", 1, "#E30613"),
-        ("Contratas / Servicios", 0, "#059669"),
-        ("Transportistas / Carga", 0, "#2563EB"),
-        ("Custodios / Seguridad", 0, "#7C3AED"),
-        ("Policías / DINOES", 0, "#D97706"),
-        ("Visitas Técnicas / Terceros", 0, "#0891B2")
-    ]
-    for nom, com, col in cats_default:
-        c.execute("INSERT OR IGNORE INTO categorias (nombre, aplica_comision, color_tag) VALUES (?, ?, ?)", (nom, com, col))
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS mensajes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remitente TEXT NOT NULL,
+        destinatario TEXT NOT NULL,
+        contenido TEXT NOT NULL,
+        leido INTEGER DEFAULT 0,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
 
-    # Administrador por defecto
+    cats_default = [
+        ("Personal Propio Famesa", "TODAS", 1, "#E30613"),
+        ("Contratas / Servicios", "TODAS", 0, "#059669"),
+        ("Transportistas / Carga", "TODAS", 0, "#2563EB"),
+        ("Custodios / Seguridad", "TODAS", 0, "#7C3AED"),
+        ("Policías / DINOES", "TODAS", 0, "#D97706"),
+        ("Visitas Técnicas / Terceros", "TODAS", 0, "#0891B2")
+    ]
+    for nom, sed, com, col in cats_default:
+        try:
+            c.execute("INSERT OR IGNORE INTO categorias (nombre, sede, aplica_comision, color_tag) VALUES (?, ?, ?, ?)", (nom, sed, com, col))
+        except:
+            pass
+
     c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         admin_hash = generate_password_hash("admin123")
         c.execute('''
             INSERT INTO usuarios (username, password_hash, nombre_completo, rol, sede_asignada,
                                   puede_registrar, puede_editar, puede_borrar, puede_gestionar_categorias,
-                                  puede_exportar_excel, puede_crear_usuarios)
-            VALUES (?, ?, ?, 'superadmin', 'TODAS', 1, 1, 1, 1, 1, 1)
+                                  puede_exportar_excel, puede_crear_usuarios, chat_recibir, chat_responder)
+            VALUES (?, ?, ?, 'superadmin', 'TODAS', 1, 1, 1, 1, 1, 1, 1, 1)
         ''', ('admin', admin_hash, 'Administrador General FAMESA'))
 
     conn.commit()
@@ -133,6 +155,8 @@ def login():
             session["puede_gestionar_categorias"] = bool(user["puede_gestionar_categorias"])
             session["puede_exportar_excel"] = bool(user["puede_exportar_excel"])
             session["puede_crear_usuarios"] = bool(user["puede_crear_usuarios"])
+            session["chat_recibir"] = bool(user["chat_recibir"]) if "chat_recibir" in user.keys() else True
+            session["chat_responder"] = bool(user["chat_responder"]) if "chat_responder" in user.keys() else True
             return redirect(url_for("panel_operativo"))
         else:
             flash("Credenciales incorrectas", "error")
@@ -151,16 +175,30 @@ def panel_operativo():
 
 @app.route("/usuarios")
 def gestion_usuarios():
-    if "user_id" not in session or not session.get("puede_crear_usuarios"):
-        flash("Acceso denegado.", "error")
+    # Estricto: Solo el superadmin puede entrar a ver usuarios y auditoría
+    if "user_id" not in session or session.get("rol") != "superadmin":
+        flash("Acceso denegado. Zona exclusiva de administración.", "error")
         return redirect(url_for("panel_operativo"))
     conn = get_db()
     users = conn.execute("SELECT * FROM usuarios ORDER BY id ASC").fetchall()
-    
-    # Obtener el registro de auditoría exclusivo para el Administrador
-    audits = conn.execute("SELECT * FROM auditoria ORDER BY id DESC LIMIT 100").fetchall()
+    audits = conn.execute("SELECT * FROM auditoria WHERE accion = 'EDITAR MOVIMIENTO' ORDER BY id DESC LIMIT 150").fetchall()
     conn.close()
     return render_template("usuarios.html", usuarios=users, sedes=SEDES_VALIDAS, auditoria=audits)
+
+# RUTA PARA BORRAR HISTORIAL DE AUDITORÍA (EXCLUSIVO ADMIN)
+@app.route("/api/auditoria/<int:id>", methods=["DELETE"])
+def api_auditoria_del(id):
+    if "user_id" not in session or session.get("rol") != "superadmin":
+        return jsonify({"error": "No autorizado"}), 403
+    conn = get_db()
+    c = conn.cursor()
+    if id == 0:
+        c.execute("DELETE FROM auditoria")
+    else:
+        c.execute("DELETE FROM auditoria WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
 
 @app.route("/api/mi_perfil", methods=["PUT"])
 def api_mi_perfil():
@@ -188,7 +226,6 @@ def api_mi_perfil():
         conn.close()
         return jsonify({"error": "El usuario ya existe"}), 400
 
-# GESTIÓN Y EDICIÓN DE CATEGORÍAS
 @app.route("/api/categorias", methods=["GET", "POST", "PUT", "DELETE"])
 def api_categorias():
     conn = get_db()
@@ -200,21 +237,22 @@ def api_categorias():
             return jsonify({"error": "No autorizado"}), 403
         data = request.json
         nombre = data.get("nombre", "").strip()
+        sede = data.get("sede", "TODAS")
         aplica_com = 1 if data.get("aplica_comision") else 0
         color = data.get("color_tag", "#E30613")
         if not nombre:
             conn.close()
             return jsonify({"error": "Nombre requerido"}), 400
         try:
-            c.execute("INSERT INTO categorias (nombre, aplica_comision, color_tag) VALUES (?, ?, ?)", (nombre, aplica_com, color))
+            c.execute("INSERT INTO categorias (nombre, sede, aplica_comision, color_tag) VALUES (?, ?, ?, ?)", (nombre, sede, aplica_com, color))
             c.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-                      (session.get("username"), "CREAR CATEGORÍA", f"Se creó la categoría: {nombre}"))
+                      (session.get("username"), "CREAR CATEGORÍA", f"Creó categoría '{nombre}'"))
             conn.commit()
             conn.close()
             return jsonify({"success": True})
         except sqlite3.IntegrityError:
             conn.close()
-            return jsonify({"error": "Ya existe"}), 400
+            return jsonify({"error": "La categoría ya existe"}), 400
 
     elif request.method == "PUT":
         if "user_id" not in session or not session.get("puede_gestionar_categorias"):
@@ -223,6 +261,7 @@ def api_categorias():
         data = request.json
         cat_id = data.get("id")
         nuevo_nombre = data.get("nombre", "").strip()
+        sede = data.get("sede", "TODAS")
         aplica_com = 1 if data.get("aplica_comision") else 0
         color = data.get("color_tag", "#E30613")
 
@@ -234,18 +273,17 @@ def api_categorias():
         nombre_viejo = cat_vieja["nombre"] if cat_vieja else ""
 
         try:
-            c.execute("UPDATE categorias SET nombre = ?, aplica_comision = ?, color_tag = ? WHERE id = ?", 
-                      (nuevo_nombre, aplica_com, color, cat_id))
-            # Actualizar también en movimientos para mantener consistencia
+            c.execute("UPDATE categorias SET nombre = ?, sede = ?, aplica_comision = ?, color_tag = ? WHERE id = ?", 
+                      (nuevo_nombre, sede, aplica_com, color, cat_id))
             c.execute("UPDATE movimientos SET categoria = ? WHERE categoria = ?", (nuevo_nombre, nombre_viejo))
             c.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-                      (session.get("username"), "EDITAR CATEGORÍA", f"Se editó la categoría '{nombre_viejo}' a '{nuevo_nombre}'"))
+                      (session.get("username"), "EDITAR CATEGORÍA", f"Editó categoría '{nombre_viejo}' a '{nuevo_nombre}'"))
             conn.commit()
             conn.close()
             return jsonify({"success": True})
         except sqlite3.IntegrityError:
             conn.close()
-            return jsonify({"error": "Ese nombre de categoría ya está en uso"}), 400
+            return jsonify({"error": "Ese nombre ya está en uso"}), 400
 
     elif request.method == "DELETE":
         if "user_id" not in session or not session.get("puede_gestionar_categorias"):
@@ -255,15 +293,18 @@ def api_categorias():
         cat_row = c.execute("SELECT nombre FROM categorias WHERE id = ?", (cat_id,)).fetchone()
         if cat_row:
             cat_nom = cat_row["nombre"]
-            c.execute("DELETE FROM movimientos WHERE categoria = ?", (cat_nom,))
             c.execute("DELETE FROM categorias WHERE id = ?", (cat_id,))
             c.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-                      (session.get("username"), "ELIMINAR CATEGORÍA", f"Se eliminó la categoría: {cat_nom}"))
+                      (session.get("username"), "ELIMINAR CATEGORÍA", f"Eliminó categoría '{cat_nom}'"))
             conn.commit()
         conn.close()
         return jsonify({"success": True})
 
-    cats = c.execute("SELECT * FROM categorias ORDER BY id ASC").fetchall()
+    sede_filtro = request.args.get("sede", "TODAS")
+    if sede_filtro == "TODAS":
+        cats = c.execute("SELECT * FROM categorias ORDER BY id ASC").fetchall()
+    else:
+        cats = c.execute("SELECT * FROM categorias WHERE sede = ? OR sede = 'TODAS' ORDER BY id ASC", (sede_filtro,)).fetchall()
     conn.close()
     return jsonify([dict(row) for row in cats])
 
@@ -273,14 +314,16 @@ def api_resumen():
     fecha = request.args.get("fecha", datetime.now().strftime("%Y-%m-%d"))
     conn = get_db()
     c = conn.cursor()
-    cats_db = c.execute("SELECT * FROM categorias ORDER BY id ASC").fetchall()
-    cats_map = {row["nombre"]: dict(row) for row in cats_db}
-
+    
     if sede == "TODAS":
+        cats_db = c.execute("SELECT * FROM categorias ORDER BY id ASC").fetchall()
         movs = c.execute("SELECT * FROM movimientos WHERE fecha = ? ORDER BY id DESC", (fecha,)).fetchall()
     else:
+        cats_db = c.execute("SELECT * FROM categorias WHERE sede = ? OR sede = 'TODAS' ORDER BY id ASC", (sede,)).fetchall()
         movs = c.execute("SELECT * FROM movimientos WHERE sede = ? AND fecha = ? ORDER BY id DESC", (sede, fecha)).fetchall()
+    
     conn.close()
+    cats_map = {row["nombre"]: dict(row) for row in cats_db}
 
     metricas = {}
     for nom in cats_map:
@@ -305,8 +348,7 @@ def api_resumen():
             elif t == "RETORNO COMISIÓN":
                 metricas[cat]["com_ret"] += cant
 
-    tot_ing = tot_sal = tot_com_s = tot_com_r = tot_com_act = tot_presentes = 0
-    tabla_resumen = []
+    tot_ing = tot_sal = tot_presentes = 0
     tarjetas_dinamicas = []
 
     for nom, item in metricas.items():
@@ -319,9 +361,6 @@ def api_resumen():
 
         tot_ing += item["ingresos"]
         tot_sal += item["salidas"]
-        tot_com_s += item["com_sal"]
-        tot_com_r += item["com_ret"]
-        tot_com_act += item["com_activa"]
         tot_presentes += item["presentes"]
 
         tarjetas_dinamicas.append({
@@ -329,42 +368,16 @@ def api_resumen():
             "presentes": item["presentes"],
             "color_tag": item["color_tag"],
             "ingresos": item["ingresos"],
-            "salidas": item["salidas"],
-            "com_activa": item["com_activa"] if item["aplica_comision"] else 0
-        })
-
-        tabla_resumen.append({
-            "categoria": nom,
-            "color_tag": item["color_tag"],
-            "ingresos": item["ingresos"],
-            "salidas": item["salidas"],
-            "com_sal": item["com_sal"] if item["aplica_comision"] else "-",
-            "com_ret": item["com_ret"] if item["aplica_comision"] else "-",
-            "com_activa": item["com_activa"] if item["aplica_comision"] else "-",
-            "presentes": item["presentes"]
+            "salidas": item["salidas"]
         })
 
     return jsonify({
         "sede": sede,
         "fecha": fecha,
-        "kpis": {
-            "total_planta": tot_presentes,
-            "total_ingresos": tot_ing,
-            "total_salidas": tot_sal
-        },
-        "tarjetas": tarjetas_dinamicas,
-        "tabla": tabla_resumen,
-        "totales_pie": {
-            "ingresos": tot_ing,
-            "salidas": tot_sal,
-            "com_sal": tot_com_s,
-            "com_ret": tot_com_r,
-            "com_activa": tot_com_act,
-            "presentes": tot_presentes
-        }
+        "kpis": {"total_planta": tot_presentes, "total_ingresos": tot_ing, "total_salidas": tot_sal},
+        "tarjetas": tarjetas_dinamicas
     })
 
-# REGISTRO Y EDICIÓN DE MOVIMIENTOS (CON RASTRO DE AUDITORÍA)
 @app.route("/api/movimientos", methods=["GET", "POST", "PUT"])
 def api_movimientos():
     conn = get_db()
@@ -376,11 +389,6 @@ def api_movimientos():
             return jsonify({"error": "Sin permisos"}), 403
         data = request.json
         sede = data.get("sede")
-        sede_user = session.get("sede_asignada")
-        if sede_user != "TODAS" and sede_user != sede:
-            conn.close()
-            return jsonify({"error": "Acceso denegado"}), 403
-
         c.execute('''
             INSERT INTO movimientos (sede, fecha, hora, categoria, tipo_movimiento, cantidad, empresa, placa, supervisor, motivo, registrado_por)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -393,7 +401,7 @@ def api_movimientos():
             int(data.get("cantidad") or 1),
             (data.get("empresa") or "").strip() or "-",
             (data.get("placa") or "").strip() or "-",
-            (data.get("supervisor") or "").strip() or "-",
+            session.get("nombre"),
             (data.get("motivo") or "").strip() or "-",
             session.get("username")
         ))
@@ -404,7 +412,7 @@ def api_movimientos():
     elif request.method == "PUT":
         if "user_id" not in session or not session.get("puede_editar"):
             conn.close()
-            return jsonify({"error": "No autorizado para editar registros"}), 403
+            return jsonify({"error": "No autorizado"}), 403
         
         data = request.json
         mov_id = data.get("id")
@@ -412,9 +420,11 @@ def api_movimientos():
             conn.close()
             return jsonify({"error": "ID requerido"}), 400
 
+        viejo = c.execute("SELECT * FROM movimientos WHERE id = ?", (mov_id,)).fetchone()
+        
         c.execute('''
             UPDATE movimientos 
-            SET categoria = ?, tipo_movimiento = ?, cantidad = ?, empresa = ?, placa = ?, supervisor = ?, motivo = ?
+            SET categoria = ?, tipo_movimiento = ?, cantidad = ?, empresa = ?, placa = ?, motivo = ?
             WHERE id = ?
         ''', (
             data.get("categoria"),
@@ -422,30 +432,25 @@ def api_movimientos():
             int(data.get("cantidad") or 1),
             (data.get("empresa") or "").strip() or "-",
             (data.get("placa") or "").strip() or "-",
-            (data.get("supervisor") or "").strip() or "-",
             (data.get("motivo") or "").strip() or "-",
             mov_id
         ))
         
-        # Registrar auditoría de edición de movimiento
+        detalles_concisos = f"Reg #{mov_id} | Cant: {viejo['cantidad']}->{data.get('cantidad')} | Cat: {data.get('categoria')} | Mov: {data.get('tipo_movimiento')}"
         c.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-                  (session.get("username"), "EDITAR MOVIMIENTO", f"Se editó el registro ID #{mov_id}"))
+                  (session.get("username"), "EDITAR MOVIMIENTO", detalles_concisos))
         conn.commit()
         conn.close()
         return jsonify({"success": True})
 
     sede = request.args.get("sede", "Puente Piedra")
     fecha = request.args.get("fecha")
-    mes = request.args.get("mes")
     sql = "SELECT * FROM movimientos WHERE 1=1"
     params = []
     if sede != "TODAS":
         sql += " AND sede = ?"
         params.append(sede)
-    if mes:
-        sql += " AND fecha LIKE ?"
-        params.append(f"{mes}%")
-    elif fecha:
+    if fecha:
         sql += " AND fecha = ?"
         params.append(fecha)
     sql += " ORDER BY id DESC"
@@ -461,12 +466,69 @@ def api_movimiento_del(id):
     c = conn.cursor()
     c.execute("DELETE FROM movimientos WHERE id = ?", (id,))
     c.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-              (session.get("username"), "ELIMINAR MOVIMIENTO", f"Se eliminó el registro ID #{id}"))
+              (session.get("username"), "ELIMINAR MOVIMIENTO", f"Eliminó registro ID #{id}"))
     conn.commit()
     conn.close()
     return jsonify({"success": True})
 
-# EXPORTACIÓN EXCEL EN MEMORIA RAM
+@app.route("/api/mensajes", methods=["GET", "POST", "DELETE", "PUT"])
+def api_mensajes():
+    if "user_id" not in session:
+        return jsonify({"error": "No autenticado"}), 401
+    conn = get_db()
+    c = conn.cursor()
+
+    if request.method == "POST":
+        if not session.get("chat_responder") and session.get("rol") != "superadmin":
+            conn.close()
+            return jsonify({"error": "No tienes permiso para responder"}), 403
+        data = request.json
+        destinatario = data.get("destinatario")
+        contenido = data.get("contenido")
+        if not destinatario or not contenido:
+            conn.close()
+            return jsonify({"error": "Datos incompletos"}), 400
+        
+        c.execute("INSERT INTO mensajes (remitente, destinatario, contenido, leido) VALUES (?, ?, ?, 0)",
+                  (session.get("username"), destinatario, contenido))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+
+    elif request.method == "PUT":
+        data = request.json
+        interlocutor = data.get("interlocutor")
+        user_actual = session.get("username")
+        c.execute("UPDATE mensajes SET leido = 1 WHERE destinatario = ? AND remitente = ?", (user_actual, interlocutor))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+
+    elif request.method == "DELETE":
+        msg_id = request.args.get("id")
+        interlocutor = request.args.get("interlocutor")
+        user_actual = session.get("username")
+        
+        if msg_id:
+            c.execute("DELETE FROM mensajes WHERE id = ?", (msg_id,))
+        elif interlocutor:
+            c.execute("DELETE FROM mensajes WHERE (remitente = ? AND destinatario = ?) OR (remitente = ? AND destinatario = ?)", 
+                      (user_actual, interlocutor, interlocutor, user_actual))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+
+    user_actual = session.get("username")
+    rol = session.get("rol")
+    
+    if rol == "superadmin":
+        msgs = c.execute("SELECT * FROM mensajes ORDER BY id ASC").fetchall()
+    else:
+        msgs = c.execute("SELECT * FROM mensajes WHERE remitente = ? OR destinatario = ? ORDER BY id ASC", 
+                         (user_actual, user_actual)).fetchall()
+    conn.close()
+    return jsonify([dict(m) for m in msgs])
+
 @app.route("/exportar_excel")
 def exportar_excel():
     if "user_id" not in session or not session.get("puede_exportar_excel"):
@@ -630,47 +692,12 @@ def exportar_excel():
         download_name=filename_clean
     )
 
-@app.route("/api/usuarios", methods=["POST"])
-def api_usuario_crear():
-    if "user_id" not in session or not session.get("puede_crear_usuarios"):
-        return jsonify({"error": "No autorizado"}), 403
-    d = request.json
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO usuarios (username, password_hash, nombre_completo, rol, sede_asignada,
-                                  puede_registrar, puede_editar, puede_borrar, puede_gestionar_categorias,
-                                  puede_exportar_excel, puede_crear_usuarios)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            d.get("username"), generate_password_hash(d.get("password")), d.get("nombre"),
-            d.get("rol", "operador"), d.get("sede_asignada", "Puente Piedra"),
-            1 if d.get("puede_registrar") else 0, 1 if d.get("puede_editar") else 0,
-            1 if d.get("puede_borrar") else 0, 1 if d.get("puede_gestionar_categorias") else 0,
-            1 if d.get("puede_exportar_excel") else 0, 1 if d.get("rol") == "superadmin" else 0
-        ))
-        c.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-                  (session.get("username"), "CREAR USUARIO", f"Se creó el usuario: {d.get('username')}"))
-        conn.commit()
-        conn.close()
-        return jsonify({"success": True})
-    except:
-        return jsonify({"error": "Error al crear"}), 400
-
-@app.route("/api/usuarios/<int:id>", methods=["DELETE"])
-def api_usuario_borrar(id):
-    if "user_id" not in session or not session.get("puede_crear_usuarios"):
-        return jsonify({"error": "No autorizado"}), 403
+@app.route("/api/usuarios", methods=["GET"])
+def api_usuarios_lista():
     conn = get_db()
-    u = conn.execute("SELECT username FROM usuarios WHERE id = ?", (id,)).fetchone()
-    username_del = u["username"] if u else str(id)
-    conn.execute("DELETE FROM usuarios WHERE id = ?", (id,))
-    conn.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-              (session.get("username"), "ELIMINAR USUARIO", f"Se eliminó al usuario: {username_del}"))
-    conn.commit()
+    users = conn.execute("SELECT username, nombre_completo, sede_asignada, chat_responder FROM usuarios").fetchall()
     conn.close()
-    return jsonify({"success": True})
+    return jsonify([dict(u) for u in users])
 
 @app.route("/api/usuarios/<int:id>", methods=["GET"])
 def api_usuario_get(id):
@@ -681,22 +708,23 @@ def api_usuario_get(id):
 
 @app.route("/api/usuarios/<int:id>/editar", methods=["PUT"])
 def api_usuario_editar_completo(id):
-    if "user_id" not in session or not session.get("puede_crear_usuarios"):
+    if "user_id" not in session or session.get("rol") != "superadmin":
         return jsonify({"error": "No autorizado"}), 403
     d = request.json
     conn = get_db()
     c = conn.cursor()
-    if d.get("password"):
-        c.execute("UPDATE usuarios SET nombre_completo=?, username=?, password_hash=?, sede_asignada=?, rol=?, puede_registrar=?, puede_editar=?, puede_borrar=?, puede_gestionar_categorias=?, puede_exportar_excel=? WHERE id=?",
-                  (d.get("nombre"), d.get("username"), generate_password_hash(d.get("password")), d.get("sede_asignada"), d.get("rol"), 
-                   1 if d.get("puede_registrar") else 0, 1 if d.get("puede_editar") else 0, 1 if d.get("puede_borrar") else 0, 1 if d.get("puede_gestionar_categorias") else 0, 1 if d.get("puede_exportar_excel") else 0, id))
-    else:
-        c.execute("UPDATE usuarios SET nombre_completo=?, username=?, sede_asignada=?, rol=?, puede_registrar=?, puede_editar=?, puede_borrar=?, puede_gestionar_categorias=?, puede_exportar_excel=? WHERE id=?",
-                  (d.get("nombre"), d.get("username"), d.get("sede_asignada"), d.get("rol"), 
-                   1 if d.get("puede_registrar") else 0, 1 if d.get("puede_editar") else 0, 1 if d.get("puede_borrar") else 0, 1 if d.get("puede_gestionar_categorias") else 0, 1 if d.get("puede_exportar_excel") else 0, id))
     
-    c.execute("INSERT INTO auditoria (usuario, accion, detalles) VALUES (?, ?, ?)", 
-              (session.get("username"), "EDITAR USUARIO", f"Se editaron permisos/datos del usuario ID #{id}"))
+    c.execute('''
+        UPDATE usuarios SET nombre_completo=?, username=?, sede_asignada=?, rol=?, 
+        puede_registrar=?, puede_editar=?, puede_borrar=?, puede_gestionar_categorias=?, 
+        puede_exportar_excel=?, puede_crear_usuarios=?, chat_recibir=?, chat_responder=? WHERE id=?
+    ''', (
+        d.get("nombre"), d.get("username"), d.get("sede_asignada"), d.get("rol"), 
+        1 if d.get("puede_registrar") else 0, 1 if d.get("puede_editar") else 0, 
+        1 if d.get("puede_borrar") else 0, 1 if d.get("puede_gestionar_categorias") else 0, 
+        1 if d.get("puede_exportar_excel") else 0, 1 if d.get("puede_crear_usuarios") else 0,
+        1 if d.get("chat_recibir") else 0, 1 if d.get("chat_responder") else 0, id
+    ))
     conn.commit()
     conn.close()
     return jsonify({"success": True})
